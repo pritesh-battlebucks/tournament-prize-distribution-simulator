@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Tournament Prize Distribution Simulator</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+  <div class="header-content">
+    <div class="header-icon">🏆</div>
+    <div class="header-text">
+      <h1>Tournament Prize Simulator</h1>
+      <p>Simulate and visualize prize distributions for your tournaments</p>
+    </div>
+    <div class="header-author">Author: Pritesh Srv</div>
+  </div>
+</header>
+
+    <main class="main-content">
+      <!-- Input Panel -->
+      <section class="input-panel">
+        <div class="panel-header">
+          <span class="panel-icon">⚙️</span>
+          <h2>Configuration</h2>
+        </div>
+
+        <!-- Basic Settings -->
+        <div class="section-group">
+          <h3 class="section-title">Basic Settings</h3>
+          <div class="form-grid">
+            <div class="form-field">
+              <label for="totalPlayers">Total Players</label>
+              <input type="number" id="totalPlayers" placeholder="e.g. 100" min="1" />
+            </div>
+            <div class="form-field">
+              <label for="totalEntries">Total Entries</label>
+              <input type="number" id="totalEntries" placeholder="e.g. 120" min="1" />
+            </div>
+            <div class="form-field">
+              <label for="regFeeCoins">Registration Fee (Coins)</label>
+              <input type="number" id="regFeeCoins" placeholder="e.g. 100" min="0" />
+            </div>
+            <div class="form-field">
+              <label for="regFeeGems">Registration Fee (Gems)</label>
+              <input type="number" id="regFeeGems" placeholder="e.g. 10" min="0" />
+            </div>
+            <div class="form-field">
+              <label for="regFeeGG">Registration Fee (GG)</label>
+              <input type="number" id="regFeeGG" placeholder="e.g. 5" min="0" />
+            </div>
+            <div class="form-field">
+              <label for="formulaSelect">Formula</label>
+              <select id="formulaSelect"></select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Prize Pool Distribution Rules -->
+        <div class="section-group">
+          <div class="section-title-row">
+            <h3 class="section-title">Entry Fee Distribution Rules</h3>
+            <button class="btn-add" onclick="addDistributionRule()">+ Add Rule</button>
+          </div>
+          <div class="rules-header">
+            <span>Rank Start %</span>
+            <span>Rank End %</span>
+            <span>Share %</span>
+            <span></span>
+          </div>
+          <div id="distributionRules" class="rules-container"></div>
+        </div>
+
+        <!-- Trophies Distribution Rules -->
+        <div class="section-group">
+          <div class="section-title-row">
+            <h3 class="section-title">Trophies Distribution Rules</h3>
+            <button class="btn-add" onclick="addTrophyRule()">+ Add Rule</button>
+          </div>
+          <div class="rules-header">
+            <span>Rank Start %</span>
+            <span>Rank End %</span>
+            <span>Trophies / Player</span>
+            <span></span>
+          </div>
+          <div id="trophyRules" class="rules-container"></div>
+        </div>
+
+        <!-- Extra Rank-Wise Rewards -->
+        <div class="section-group">
+          <div class="section-title-row">
+            <h3 class="section-title">Extra Rank-Wise Rewards</h3>
+            <button class="btn-add" onclick="addExtraReward()">+ Add Rank</button>
+          </div>
+          <p class="section-hint">Define special rewards for top-ranked players (Rank 1, 2, 3, …)</p>
+          <div id="extraRewards" class="extra-rewards-container"></div>
+        </div>
+
+        <!-- Compute Button -->
+        <button class="btn-compute" onclick="computeResults()">
+          <span class="btn-icon">⚡</span> Compute Result
+        </button>
+      </section>
+
+      <!-- Results Panel -->
+      <section class="results-panel" id="resultsPanel" style="display:none;">
+        <div class="panel-header">
+          <span class="panel-icon">📊</span>
+          <h2>Prize Distribution Results</h2>
+          <div class="results-meta" id="resultsMeta"></div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="summary-cards" id="summaryCards"></div>
+
+        <div class="export-bar">
+  <button class="btn-export" onclick="downloadPDF()">
+    <span>⬇</span> Download PDF
+  </button>
+</div>
+
+        <!-- Results Table -->
+        <div class="table-wrapper">
+          <table class="results-table" id="resultsTable">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>🪙 Coins</th>
+                <th>💎 Gems</th>
+                <th>🏆 Trophies</th>
+                <th>⭐ GG</th>
+                <th>🎁 Physical</th>
+              </tr>
+            </thead>
+            <tbody id="resultsBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- jsPDF + AutoTable (PDF export) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+  <script src="assets/formulas/formula1.js"></script>
+  <script src="assets/formulas/formula2.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
