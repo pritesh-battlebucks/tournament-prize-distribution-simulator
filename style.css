@@ -612,6 +612,20 @@ select option {
   transition: transform var(--transition), box-shadow var(--transition);
 }
 
+.btn-copy-json {
+  background: linear-gradient(135deg, #4f8ef7, #9b6dff);
+  box-shadow: 0 4px 16px rgba(79, 142, 247, 0.3);
+}
+
+.btn-copy-json:hover {
+  box-shadow: 0 6px 24px rgba(79, 142, 247, 0.45);
+}
+
+.btn-copy-json.copied {
+  background: linear-gradient(135deg, #3ecf8e, #1a9e68);
+  box-shadow: 0 4px 16px rgba(62, 207, 142, 0.3);
+}
+
 .btn-export:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 24px rgba(62,207,142,0.45);

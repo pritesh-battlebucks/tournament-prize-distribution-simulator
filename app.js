@@ -390,6 +390,8 @@ function downloadPDF() {
   const HDR_GREEN  = [25,  115,  70];
   const HDR_PURPLE = [90,  55,  185];
   const HDR_BLUE   = [40,  90,  200];
+  const HDR_ROSE_GOLD = [200, 120, 100];
+  const HDR_GREY_ALT = [110, 110, 120]
 
   // Soft pastel row tints (light bg, dark text — used in body rows)
   const TINT_GOLD   = [255, 251, 230];
@@ -602,7 +604,7 @@ function downloadPDF() {
   }
 
   // ── RESULTS TABLE ─────────────────────────────────────────
-  curY = sectionHeader("Prize Distribution Results", curY, HDR_GREEN);
+  curY = sectionHeader("Prize Distribution Results", curY, HDR_GREY_ALT);
 
   // No emojis — use plain text medal labels
   const rankLabel = (rank) =>
@@ -695,4 +697,72 @@ function downloadPDF() {
   // ── SAVE ──────────────────────────────────────────────────
   const ts = new Date().toISOString().slice(0,16).replace("T","_").replace(/:/g,"-");
   doc.save(`prize_distribution_${ts}.pdf`);
+}
+
+// ============================================================
+//  Copy Result JSON to Clipboard
+// ============================================================
+function copyResultJSON() {
+  if (!window._lastResults || !window._lastInputData) {
+    showToast("No results to copy. Please compute first.");
+    return;
+  }
+
+  const data    = window._lastInputData;
+  const results = window._lastResults;
+  const formulaObj = FORMULAS.find(f => f.id === data.selectedFormula);
+
+  const output = {
+    meta: {
+      formula:             formulaObj?.name ?? data.selectedFormula,
+      totalPlayers:        data.totalPlayers,
+      totalEntries:        data.totalEntries,
+      registrationFeeCoins: data.registrationFeeCoins,
+      registrationFeeGems:  data.registrationFeeGems,
+      registrationFeeGG:    data.registrationFeeGG,
+      totalCoinsPool:      data.registrationFeeCoins * data.totalEntries,
+      totalGemsPool:       data.registrationFeeGems  * data.totalEntries,
+      totalGGPool:         data.registrationFeeGG    * data.totalEntries,
+      generatedAt:         new Date().toISOString(),
+    },
+    config: {
+      prizeDistributionRules:  data.prizeDistributionRules,
+      trophyDistributionRules: data.trophyDistributionRules,
+      extraRankWiseRewards:    data.extraRankWiseRewards,
+    },
+    results: results.map(r => ({
+      rank:            r.rank,
+      coins:           r.coins,
+      gems:            r.gems,
+      trophies:        r.trophies,
+      gg:              r.gg,
+      physicalRewards: r.physicalRewards,
+    })),
+  };
+
+  const jsonStr = JSON.stringify(output, null, 2);
+
+  navigator.clipboard.writeText(jsonStr).then(() => {
+    // Visual feedback on the button
+    const btn = document.querySelector(".btn-copy-json");
+    if (btn) {
+      btn.classList.add("copied");
+      btn.innerHTML = `<span>&#10003;</span> Copied!`;
+      setTimeout(() => {
+        btn.classList.remove("copied");
+        btn.innerHTML = `<span>&#10697;</span> Copy JSON`;
+      }, 2000);
+    }
+  }).catch(() => {
+    // Fallback for browsers that block clipboard API
+    const ta = document.createElement("textarea");
+    ta.value = jsonStr;
+    ta.style.position = "fixed";
+    ta.style.opacity  = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+    showToast("JSON copied to clipboard!");
+  });
 }
