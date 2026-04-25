@@ -141,6 +141,23 @@
             <tbody id="resultsBody"></tbody>
           </table>
         </div>
+
+                <!-- Validate Button -->
+        <div class="validate-bar">
+          <button class="btn-validate" onclick="validateResults()">
+            <span>🔍</span> Validate Results
+          </button>
+        </div>
+
+        <!-- Validation Results -->
+        <div id="validationPanel" class="validation-panel" style="display:none;">
+          <div class="validation-header">
+            <span class="validation-icon" id="validationIcon"></span>
+            <h3 id="validationTitle"></h3>
+          </div>
+          <div id="validationChecks" class="validation-checks"></div>
+        </div>
+        
       </section>
     </main>
   </div>

@@ -766,3 +766,157 @@ function copyResultJSON() {
     showToast("JSON copied to clipboard!");
   });
 }
+
+// ============================================================
+//  Validate Results
+// ============================================================
+function validateResults() {
+  if (!window._lastResults || !window._lastInputData) {
+    showToast("No results to validate. Please compute first.");
+    return;
+  }
+
+  const results = window._lastResults;
+  const data    = window._lastInputData;
+
+  const totalCoinsPool = data.registrationFeeCoins * data.totalEntries;
+  const totalGemsPool  = data.registrationFeeGems  * data.totalEntries;
+  const totalGGPool    = data.registrationFeeGG    * data.totalEntries;
+
+  const checks = [];
+
+  // ── Helper: pool sum check ──────────────────────────────
+    function poolCheck(label, key, pool) {
+    // Map key name: results use "gg" but extraRankWiseRewards uses "GG"
+    const extraKey = key === "gg" ? "GG" : key;
+
+    // Sum only the BASE pool distribution (strip out extra rank-wise bonuses)
+    const totalExtra = data.extraRankWiseRewards.reduce(
+      (sum, r) => sum + (r[extraKey] || 0), 0
+    );
+    const totalDistributed = results.reduce((sum, r) => sum + (r[key] || 0), 0);
+    const baseDistributed  = totalDistributed - totalExtra;
+    const diff = baseDistributed - pool;
+
+    let status, detail;
+
+    const extraNote = totalExtra > 0
+      ? ` <span class="val-normal">(+${totalExtra.toLocaleString()} from Extra Rank-Wise Rewards, excluded from pool check)</span>`
+      : "";
+
+    if (pool === 0 && baseDistributed === 0) {
+      status = "pass";
+      detail = `Pool is 0 and base distributed total is also 0. Nothing to distribute.${extraNote}`;
+    } else if (diff === 0) {
+      status = "pass";
+      detail = `Base distributed <span class="val-good">${baseDistributed.toLocaleString()}</span> = Pool <span class="val-good">${pool.toLocaleString()}</span>. Perfectly balanced.${extraNote}`;
+    } else if (diff < 0) {
+      status = "warn";
+      detail = `Base distributed <span class="val-warn">${baseDistributed.toLocaleString()}</span> &lt; Pool <span class="val-normal">${pool.toLocaleString()}</span>. Underdistributed by <span class="val-warn">${Math.abs(diff).toLocaleString()}</span>.${extraNote}`;
+    } else {
+      status = "fail";
+      detail = `Base distributed <span class="val-bad">${baseDistributed.toLocaleString()}</span> &gt; Pool <span class="val-bad">${pool.toLocaleString()}</span>. Over-distributed by <span class="val-bad">${diff.toLocaleString()}</span>.${extraNote}`;
+    }
+
+    checks.push({
+      status,
+      title: `${label} Pool Distribution`,
+      detail,
+    });
+  }
+
+  poolCheck("Coins",   "coins", totalCoinsPool);
+  poolCheck("Gems",    "gems",  totalGemsPool);
+  poolCheck("GG",      "gg",    totalGGPool);
+
+  // ── Helper: rank ordering check ─────────────────────────
+  // A violation = rank N gets STRICTLY MORE than rank N-1
+  function orderCheck(label, key) {
+    const violations = [];
+
+    for (let i = 1; i < results.length; i++) {
+      const higher = results[i - 1]; // rank i   (better rank)
+      const lower  = results[i];     // rank i+1 (worse rank)
+      if ((lower[key] || 0) > (higher[key] || 0)) {
+        violations.push(
+          `Rank #${lower.rank} (${(lower[key] || 0).toLocaleString()}) ` +
+          `&gt; Rank #${higher.rank} (${(higher[key] || 0).toLocaleString()})`
+        );
+      }
+    }
+
+    // Cap displayed violations at 5 to keep UI tidy
+    const shown    = violations.slice(0, 5);
+    const overflow = violations.length - shown.length;
+
+    let detail = "";
+    let status;
+
+    if (violations.length === 0) {
+      status = "pass";
+      detail = `All players are rewarded in descending rank order. No inversions found.`;
+    } else {
+      status = "fail";
+      detail = `<strong>${violations.length} inversion(s)</strong> found — lower-ranked players receiving more than higher-ranked players:`;
+      detail += `<div class="violation-list">`;
+      shown.forEach(v => { detail += `<div class="violation-item">${v}</div>`; });
+      if (overflow > 0) {
+        detail += `<div class="violation-item">… and ${overflow} more violation(s)</div>`;
+      }
+      detail += `</div>`;
+    }
+
+    checks.push({ status, title: `${label} Rank Order`, detail });
+  }
+
+  orderCheck("Coins",    "coins");
+  orderCheck("Gems",     "gems");
+  orderCheck("GG",       "gg");
+  orderCheck("Trophies", "trophies");
+
+  // ── Render ───────────────────────────────────────────────
+  const panel  = document.getElementById("validationPanel");
+  const header = panel.querySelector(".validation-header");
+  const icon   = document.getElementById("validationIcon");
+  const title  = document.getElementById("validationTitle");
+  const body   = document.getElementById("validationChecks");
+
+  const failCount = checks.filter(c => c.status === "fail").length;
+  const warnCount = checks.filter(c => c.status === "warn").length;
+
+  // Header status
+  header.className = "validation-header";
+  if (failCount > 0) {
+    header.classList.add("has-fail");
+    icon.textContent  = "❌";
+    title.textContent = `Validation Failed — ${failCount} error(s), ${warnCount} warning(s)`;
+    title.style.color = "#ff5c6a";
+  } else if (warnCount > 0) {
+    header.classList.add("has-warn");
+    icon.textContent  = "⚠️";
+    title.textContent = `Validation Passed with ${warnCount} warning(s)`;
+    title.style.color = "#f5c842";
+  } else {
+    header.classList.add("all-pass");
+    icon.textContent  = "✅";
+    title.textContent = "All Validations Passed";
+    title.style.color = "#3ecf8e";
+  }
+
+  // Check rows
+  body.innerHTML = checks.map(c => {
+    const badgeSymbol = c.status === "pass" ? "✓" : c.status === "fail" ? "✕" : "!";
+    return `
+      <div class="check-row">
+        <div class="check-badge ${c.status}">${badgeSymbol}</div>
+        <div class="check-content">
+          <div class="check-title">${c.title}</div>
+          <div class="check-detail">${c.detail}</div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  panel.style.display = "block";
+  setTimeout(() => panel.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50);
+}
