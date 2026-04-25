@@ -21,49 +21,51 @@
  * @returns {number[]} Integer allocations whose sum === totalUnits.
  */
 function allocateDiscreteUnits(totalUnits, weights, options = {}) {
-  if (totalUnits <= 0 || weights.length === 0) {
-    return weights.map(() => 0);
-  }
+  if (totalUnits <= 0 || weights.length === 0) return weights.map(() => 0);
 
   const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-  if (totalWeight <= 0) {
-    return weights.map(() => 0);
-  }
+  if (totalWeight <= 0) return weights.map(() => 0);
 
-  // Floor pass
   const exactAllocations = weights.map((w) => (totalUnits * w) / totalWeight);
   const allocations = exactAllocations.map((a) => Math.floor(a));
 
-  let remainingUnits =
-    totalUnits - allocations.reduce((sum, a) => sum + a, 0);
-
+  let remainingUnits = totalUnits - allocations.reduce((sum, a) => sum + a, 0);
   if (remainingUnits <= 0) return allocations;
 
-  // Rank buckets by fractional remainder (deterministic tie-break)
+  // ── NEW: resolve eligible indexes once (used by sequential path) ──────────
+  const weightedIndexes = weights
+    .map((w, idx) => ({ idx, hasWeight: w > 0 }))
+    .filter((b) => b.hasWeight)
+    .map((b) => b.idx);
+
+  if (weightedIndexes.length === 0) return allocations;
+
+  // ── NEW: sequential strategy ──────────────────────────────────────────────
+  if (options.remainderStrategy === 'sequential') {
+    let cursor = 0;
+    while (remainingUnits > 0) {
+      allocations[weightedIndexes[cursor % weightedIndexes.length]] += 1;
+      remainingUnits -= 1;
+      cursor += 1;
+    }
+    return allocations;
+  }
+
+  // ── Default: largest-remainder (LRM) ─────────────────────────────────────
   const rankedBuckets = exactAllocations
-    .map((a, idx) => ({
-      index:     idx,
-      remainder: a - Math.floor(a),
-      hasWeight: weights[idx] > 0,
-    }))
+    .map((a, idx) => ({ index: idx, remainder: a - Math.floor(a), hasWeight: weights[idx] > 0 }))
     .filter((b) => b.hasWeight)
     .sort((l, r) => {
       if (r.remainder !== l.remainder) return r.remainder - l.remainder;
-      return options.tieBreak === "later"
-        ? r.index - l.index
-        : l.index - r.index; // default: 'earlier'
+      return options.tieBreak === 'later' ? r.index - l.index : l.index - r.index;
     });
 
-  if (rankedBuckets.length === 0) return allocations;
-
-  // Distribute leftover units
   let cursor = 0;
   while (remainingUnits > 0) {
     allocations[rankedBuckets[cursor % rankedBuckets.length].index] += 1;
     remainingUnits -= 1;
     cursor += 1;
   }
-
   return allocations;
 }
 
@@ -101,11 +103,10 @@ function getPercentileRecipientCounts(totalParticipants, rules) {
     .slice(0, occupiedBracketCount)
     .map((r) => r.rankEndPercent - r.rankStartPercent);
 
-  const extraCounts = allocateDiscreteUnits(
-    remainingParticipants,
-    percentileWidths,
-    { tieBreak: "later" }
-  );
+  const extraCounts = allocateDiscreteUnits(remainingParticipants, percentileWidths, {
+  remainderStrategy: 'largestRemainder',
+  tieBreak: 'later',
+});
 
   extraCounts.forEach((extra, idx) => {
     recipientCounts[idx] += extra;
@@ -141,7 +142,7 @@ function computePercentilePrizeAllocations(totalParticipants, totalPrize, rules)
     }
   });
 
-  return allocateDiscreteUnits(totalPrize, rankWeights, { tieBreak: "earlier" });
+  return allocateDiscreteUnits(totalPrize, rankWeights, { remainderStrategy: 'sequential' });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
