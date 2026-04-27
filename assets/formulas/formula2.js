@@ -26,10 +26,19 @@ function allocateDiscreteUnits(totalUnits, weights, options = {}) {
   const totalWeight = weights.reduce((sum, w) => sum + w, 0);
   if (totalWeight <= 0) return weights.map(() => 0);
 
-  const exactAllocations = weights.map((w) => (totalUnits * w) / totalWeight);
-  const allocations = exactAllocations.map((a) => Math.floor(a));
+  // ── FIX: snap values within floating-point noise of an integer ──────────
+  const EPSILON = 1e-9;
+  const exactAllocations = weights.map((w) => {
+    const raw = (totalUnits * w) / totalWeight;
+    const nearest = Math.round(raw);
+    return Math.abs(raw - nearest) < EPSILON ? nearest : raw;
+  });
+  // ────────────────────────────────────────────────────────────────────────
 
-  let remainingUnits = totalUnits - allocations.reduce((sum, a) => sum + a, 0);
+  const allocations = exactAllocations.map((a) => Math.floor(a));
+  let remainingUnits =
+    totalUnits - allocations.reduce((sum, a) => sum + a, 0);
+
   if (remainingUnits <= 0) return allocations;
 
   // ── NEW: resolve eligible indexes once (used by sequential path) ──────────
@@ -53,7 +62,11 @@ function allocateDiscreteUnits(totalUnits, weights, options = {}) {
 
   // ── Default: largest-remainder (LRM) ─────────────────────────────────────
   const rankedBuckets = exactAllocations
-    .map((a, idx) => ({ index: idx, remainder: a - Math.floor(a), hasWeight: weights[idx] > 0 }))
+    .map((a, idx) => ({
+      index: idx,
+      remainder: a - Math.floor(a),
+      hasWeight: weights[idx] > 0,
+    }))
     .filter((b) => b.hasWeight)
     .sort((l, r) => {
       if (r.remainder !== l.remainder) return r.remainder - l.remainder;
@@ -66,6 +79,7 @@ function allocateDiscreteUnits(totalUnits, weights, options = {}) {
     remainingUnits -= 1;
     cursor += 1;
   }
+
   return allocations;
 }
 
