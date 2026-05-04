@@ -118,6 +118,33 @@
         <!-- Summary Cards -->
         <div class="summary-cards" id="summaryCards"></div>
 
+<!-- Bracket Breakdown -->
+<div class="bracket-breakdown" id="bracketBreakdown" style="display:none;">
+  <div class="bb-header">
+    <span class="panel-icon">🎯</span>
+    <h2>Bracket Breakdown</h2>
+    <div class="breakdown-legend">
+      <span class="legend-pill pill-entry">Entry Fee</span>
+      <span class="legend-pill pill-trophy">Trophies</span>
+    </div>
+  </div>
+
+  <!-- Charts row -->
+  <div class="bb-charts-row">
+    <div class="bb-chart-card">
+      <div class="bb-chart-title">Entry Fee — Share % per Bracket</div>
+      <div class="bb-chart-wrap"><canvas id="entryShareChart"></canvas></div>
+    </div>
+    <div class="bb-chart-card">
+      <div class="bb-chart-title">Trophies — Points per Player per Bracket</div>
+      <div class="bb-chart-wrap"><canvas id="trophyShareChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Detail tables -->
+  <!-- <div id="bracketTable" class="bracket-table-wrap"></div> -->
+</div>
+
 <div class="export-bar">
   <button class="btn-export btn-copy-json" onclick="copyResultJSON()">
     <span>&#10697;</span> Copy JSON
@@ -167,6 +194,7 @@
   <!-- jsPDF + AutoTable (PDF export) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 
   <script src="assets/formulas/formula1.js"></script>
   <script src="assets/formulas/formula2.js"></script>

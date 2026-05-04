@@ -431,6 +431,196 @@ function computeResults() {
 }
 
 // ============================================================
+//  Bracket Breakdown — with Chart.js bar charts
+// ============================================================
+
+// Store chart instances so we can destroy before re-render
+let _entryChart  = null;
+let _trophyChart = null;
+
+function renderBracketBreakdown(results, data) {
+  const container = document.getElementById("bracketBreakdown");
+  container.style.display = "block";
+
+  const total = data.totalPlayers;
+
+  // ── Resolve brackets → rank ranges ───────────────────────
+  function resolveBrackets(rules) {
+    return rules.map((rule, i) => {
+      const startRank = Math.floor((total * rule.rankStartPercent) / 100) + 1;
+      const endRank   = Math.ceil((total * rule.rankEndPercent)   / 100);
+      const safeStart = Math.max(1, Math.min(startRank, total));
+      const safeEnd   = Math.max(safeStart, Math.min(endRank, total));
+      return {
+        rule,
+        startRank: safeStart,
+        endRank:   safeEnd,
+        count:     safeEnd - safeStart + 1,
+        widthPct:  rule.rankEndPercent - rule.rankStartPercent,
+        index:     i,
+      };
+    });
+  }
+
+  const entryBrackets  = resolveBrackets(data.prizeDistributionRules);
+  const trophyBrackets = data.trophyDistributionRules.length > 0
+    ? resolveBrackets(data.trophyDistributionRules) : [];
+
+  // ── Chart.js bar charts ────────────────────────────────────
+  const chartDefaults = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: "#151828",
+        borderColor: "#2a2f50",
+        borderWidth: 1,
+        titleColor: "#eef0f8",
+        bodyColor: "#8b8fad",
+        padding: 10,
+      },
+    },
+    scales: {
+      x: {
+        grid: { color: "rgba(42,47,80,0.6)" },
+        ticks: { color: "#8b8fad", font: { size: 10 } },
+      },
+      y: {
+        grid: { color: "rgba(42,47,80,0.6)" },
+        ticks: { color: "#8b8fad", font: { size: 10 } },
+        beginAtZero: true,
+      },
+    },
+  };
+
+  // Destroy previous instances
+  if (_entryChart)  { _entryChart.destroy();  _entryChart  = null; }
+  if (_trophyChart) { _trophyChart.destroy(); _trophyChart = null; }
+
+  // Entry Fee — share % bar chart
+  const entryLabels = entryBrackets.map((b, i) =>
+    `B${i+1}: R${b.startRank}–R${b.endRank}`);
+  const entryShareData = entryBrackets.map(b => b.rule.sharePercent);
+  const entryColors    = ["#2d6ef5","#4f8ef7","#74a8f9","#96bffb","#b5d2fc","#3a7ff6","#6aa2f9","#8ebbfa"];
+
+  _entryChart = new Chart(document.getElementById("entryShareChart"), {
+    type: "bar",
+    data: {
+      labels: entryLabels,
+      datasets: [{
+        label: "Share %",
+        data: entryShareData,
+        backgroundColor: entryBrackets.map((_, i) => entryColors[i % entryColors.length]),
+        borderRadius: 5,
+        borderSkipped: false,
+      }],
+    },
+    options: {
+      ...chartDefaults,
+      plugins: {
+        ...chartDefaults.plugins,
+        tooltip: {
+          ...chartDefaults.plugins.tooltip,
+          callbacks: {
+            label: ctx => ` Share: ${ctx.parsed.y}%  |  Players: ${entryBrackets[ctx.dataIndex].count}`,
+          },
+        },
+      },
+      scales: {
+        ...chartDefaults.scales,
+        y: { ...chartDefaults.scales.y, ticks: { ...chartDefaults.scales.y.ticks, callback: v => v + "%" } },
+      },
+    },
+  });
+
+  // Trophy — trophies per player bar chart
+  const trophyData = trophyBrackets.length > 0 ? trophyBrackets : [];
+  if (trophyData.length > 0) {
+    const trophyLabels = trophyData.map((b, i) => `B${i+1}: R${b.startRank}–R${b.endRank}`);
+    const trophyPts    = trophyData.map(b => b.rule.trophiesPerParticipant);
+    const trophyColors = ["#1fa868","#3ecf8e","#63d9a4","#88e3b9","#aaeece","#2dba7a","#54d498","#7ddeb2"];
+
+    _trophyChart = new Chart(document.getElementById("trophyShareChart"), {
+      type: "bar",
+      data: {
+        labels: trophyLabels,
+        datasets: [{
+          label: "Trophies/Player",
+          data: trophyPts,
+          backgroundColor: trophyData.map((_, i) => trophyColors[i % trophyColors.length]),
+          borderRadius: 5,
+          borderSkipped: false,
+        }],
+      },
+      options: {
+        ...chartDefaults,
+        plugins: {
+          ...chartDefaults.plugins,
+          tooltip: {
+            ...chartDefaults.plugins.tooltip,
+            callbacks: {
+              label: ctx => ` Trophies: ${ctx.parsed.y}/player  |  Players: ${trophyData[ctx.dataIndex].count}`,
+            },
+          },
+        },
+      },
+    });
+  } else {
+    document.getElementById("trophyShareChart").closest(".bb-chart-card").innerHTML =
+      `<div class="bb-chart-title">Trophies — Points per Player per Bracket</div>
+       <div style="color:var(--text-muted);font-size:13px;padding:20px 0;">No trophy distribution rules defined.</div>`;
+  }
+
+  // ── Detail tables ─────────────────────────────────────────
+  function buildDetailTable(brackets, badgePrefix, type) {
+    const extraHeader = type === "entry" ? "<th>Share %</th>" : "<th>Trophies/Player</th>";
+    const rows = brackets.map((b, i) => {
+      const extraVal = type === "entry"
+        ? `<td><strong>${b.rule.sharePercent}%</strong></td>`
+        : `<td><strong>${b.rule.trophiesPerParticipant}</strong></td>`;
+      return `
+        <tr>
+          <td><span class="rank-range-badge ${badgePrefix}-${i % 5}">#${b.startRank} → #${b.endRank}</span></td>
+          <td>${b.count} player${b.count !== 1 ? "s" : ""}</td>
+          <td>${b.rule.rankStartPercent}% – ${b.rule.rankEndPercent}%</td>
+          ${extraVal}
+        </tr>`;
+    }).join("");
+
+    return `
+      <table class="bracket-mini-table">
+        <thead><tr>
+          <th>Rank Range</th><th>Players</th><th>Percentile</th>${extraHeader}
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  document.getElementById("bracketTable").innerHTML = `
+    <div>
+      <div class="bracket-section-title">
+        <span class="dot" style="background:#4f8ef7;"></span> Entry Fee Distribution
+      </div>
+      ${buildDetailTable(entryBrackets, "badge-entry", "entry")}
+    </div>
+    <div>
+      <div class="bracket-section-title">
+        <span class="dot" style="background:#3ecf8e;"></span> Trophy Distribution
+      </div>
+      ${trophyBrackets.length > 0
+        ? buildDetailTable(trophyBrackets, "badge-trophy", "trophy")
+        : `<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">No trophy distribution rules defined.</div>`
+      }
+    </div>
+  `;
+
+  // Store bracket data for PDF export
+  window._lastEntryBrackets  = entryBrackets;
+  window._lastTrophyBrackets = trophyBrackets;
+}
+
+// ============================================================
 //  Render Results
 // ============================================================
 function renderResults(results, data) {
@@ -505,6 +695,8 @@ function renderResults(results, data) {
     `;
     tbody.appendChild(tr);
   });
+
+  renderBracketBreakdown(results, data);
 }
 
 // ============================================================
@@ -770,6 +962,59 @@ function downloadPDF() {
   }
 
   // ── RESULTS TABLE ─────────────────────────────────────────
+    // ── BRACKET BREAKDOWN ─────────────────────────────────────
+  const eb = window._lastEntryBrackets  || [];
+  const tb = window._lastTrophyBrackets || [];
+
+  if (eb.length > 0) {
+    curY = sectionHeader("Bracket Breakdown — Entry Fee Distribution", curY, HDR_BLUE);
+    curY = makeTable(
+      curY,
+      ["Bracket", "Rank Range", "Players", "Percentile", "Share %"],
+      eb.map((b, i) => [
+        `Bracket ${i + 1}`,
+        `#${b.startRank} to #${b.endRank}`,
+        `${b.count} player${b.count !== 1 ? "s" : ""}`,
+        `${b.rule.rankStartPercent}% – ${b.rule.rankEndPercent}%`,
+        `${b.rule.sharePercent}%`,
+      ]),
+      HDR_BLUE,
+      TINT_BLUE,
+      {
+        0: { halign: "center" },
+        1: { halign: "center", fontStyle: "bold" },
+        2: { halign: "center" },
+        3: { halign: "center" },
+        4: { halign: "center", textColor: rgb(HDR_BLUE) },
+      }
+    );
+  }
+
+  if (tb.length > 0) {
+    curY = sectionHeader("Bracket Breakdown — Trophy Distribution", curY, HDR_GREEN);
+    curY = makeTable(
+      curY,
+      ["Bracket", "Rank Range", "Players", "Percentile", "Trophies/Player"],
+      tb.map((b, i) => [
+        `Bracket ${i + 1}`,
+        `#${b.startRank} to #${b.endRank}`,
+        `${b.count} player${b.count !== 1 ? "s" : ""}`,
+        `${b.rule.rankStartPercent}% – ${b.rule.rankEndPercent}%`,
+        `${b.rule.trophiesPerParticipant}`,
+      ]),
+      HDR_GREEN,
+      TINT_GREEN,
+      {
+        0: { halign: "center" },
+        1: { halign: "center", fontStyle: "bold" },
+        2: { halign: "center" },
+        3: { halign: "center" },
+        4: { halign: "center", textColor: rgb(HDR_GREEN) },
+      }
+    );
+  }
+
+  // ── RESULTS TABLE ─────────────────────────── (continues below as before)
   curY = sectionHeader("Prize Distribution Results", curY, HDR_GREY_ALT);
 
   // No emojis — use plain text medal labels
