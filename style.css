@@ -775,3 +775,50 @@ select option {
 .validation-header.all-pass   { background: rgba(62,207,142,0.07);  }
 .validation-header.has-fail   { background: rgba(255,92,106,0.07);  }
 .validation-header.has-warn   { background: rgba(245,200,66,0.07);  }
+
+
+/* ===== DISABLE SCROLL-WHEEL ON NUMBER INPUTS ===== */
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* ===== INLINE RULE VALIDATION ===== */
+.rules-validation-msg {
+  font-size: 11.5px;
+  margin-top: 6px;
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
+  display: none;
+  line-height: 1.5;
+}
+
+.rules-validation-msg.has-error {
+  display: block;
+  background: rgba(255, 92, 106, 0.08);
+  border: 1px solid rgba(255, 92, 106, 0.3);
+  color: #ff5c6a;
+}
+
+.rules-validation-msg.has-warn {
+  display: block;
+  background: rgba(245, 200, 66, 0.08);
+  border: 1px solid rgba(245, 200, 66, 0.3);
+  color: #f5c842;
+}
+
+.rules-validation-msg.has-ok {
+  display: block;
+  background: rgba(62, 207, 142, 0.08);
+  border: 1px solid rgba(62, 207, 142, 0.3);
+  color: #3ecf8e;
+}
+
+.rule-row input.input-error {
+  border-color: #ff5c6a !important;
+  box-shadow: 0 0 0 2px rgba(255, 92, 106, 0.15);
+}

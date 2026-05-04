@@ -9,7 +9,17 @@ const FORMULAS = [Formula1, Formula2];
 document.addEventListener("DOMContentLoaded", () => {
   populateFormulaDropdown();
   loadDefaults();
+  attachRuleListeners();
 });
+
+function attachRuleListeners() {
+  // Re-run validation whenever any input inside the rule containers changes
+  ["distributionRules", "trophyRules"].forEach(containerId => {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.addEventListener("input", () => runAllRuleValidations());
+  });
+}
 
 function populateFormulaDropdown() {
   const select = document.getElementById("formulaSelect");
@@ -65,6 +75,7 @@ function addDistributionRule(startPct = "", endPct = "", sharePct = "") {
     <button class="btn-remove" onclick="removeRow(this)" title="Remove">×</button>
   `;
   container.appendChild(row);
+  runAllRuleValidations();
 }
 
 function addTrophyRule(startPct = "", endPct = "", trophies = "") {
@@ -78,6 +89,7 @@ function addTrophyRule(startPct = "", endPct = "", trophies = "") {
     <button class="btn-remove" onclick="removeRow(this)" title="Remove">×</button>
   `;
   container.appendChild(row);
+  runAllRuleValidations();
 }
 
 function addExtraReward(coins = "", gems = "", trophies = "", GG = "") {
@@ -129,6 +141,7 @@ function addExtraReward(coins = "", gems = "", trophies = "", GG = "") {
 
 function removeRow(btn) {
   btn.closest(".rule-row").remove();
+  runAllRuleValidations();
 }
 
 function removeExtraReward(btn) {
@@ -214,10 +227,163 @@ function getFormData() {
 }
 
 // ============================================================
+//  Rules Validators (live)
+// ============================================================
+
+/**
+ * Validates a set of percentile bracket rows.
+ * @param {NodeList} rows         – .rule-row elements
+ * @param {string}   startClass   – CSS class for start% input
+ * @param {string}   endClass     – CSS class for end% input
+ * @param {boolean}  checkShare   – also validate sharePercent sums to 100
+ * @param {string}   shareClass   – CSS class for share% input (if checkShare)
+ * @returns {{ ok: boolean, errors: string[], warnings: string[] }}
+ */
+function validateBracketRules(rows, startClass, endClass, checkShare, shareClass) {
+  const errors   = [];
+  const warnings = [];
+
+  // Clear previous error highlights
+  rows.forEach(row => {
+    row.querySelectorAll("input").forEach(i => i.classList.remove("input-error"));
+  });
+
+  if (rows.length === 0) {
+    errors.push("At least one bracket rule is required.");
+    return { ok: false, errors, warnings };
+  }
+
+  const brackets = [];
+  let shareSum   = 0;
+  let hasInputError = false;
+
+  rows.forEach((row, idx) => {
+    const startEl = row.querySelector(`.${startClass}`);
+    const endEl   = row.querySelector(`.${endClass}`);
+    const start   = parseFloat(startEl?.value);
+    const end     = parseFloat(endEl?.value);
+
+    // a) Range check 0–100
+    if (isNaN(start) || start < 0 || start > 100) {
+      errors.push(`Row ${idx + 1}: Rank Start % must be between 0 and 100.`);
+      startEl?.classList.add("input-error");
+      hasInputError = true;
+    }
+    if (isNaN(end) || end < 0 || end > 100) {
+      errors.push(`Row ${idx + 1}: Rank End % must be between 0 and 100.`);
+      endEl?.classList.add("input-error");
+      hasInputError = true;
+    }
+    if (!isNaN(start) && !isNaN(end) && end <= start) {
+      errors.push(`Row ${idx + 1}: Rank End % (${end}) must be greater than Rank Start % (${start}).`);
+      endEl?.classList.add("input-error");
+      hasInputError = true;
+    }
+
+    brackets.push({ start, end, row, idx });
+
+    if (checkShare && shareClass) {
+      const shareEl = row.querySelector(`.${shareClass}`);
+      const share   = parseFloat(shareEl?.value);
+      if (isNaN(share) || share < 0 || share > 100) {
+        errors.push(`Row ${idx + 1}: Share % must be between 0 and 100.`);
+        shareEl?.classList.add("input-error");
+        hasInputError = true;
+      } else {
+        shareSum += share;
+      }
+    }
+  });
+
+  if (hasInputError) return { ok: false, errors, warnings };
+
+  // b) Contiguous chain check
+  for (let i = 1; i < brackets.length; i++) {
+    const prev = brackets[i - 1];
+    const curr = brackets[i];
+    if (curr.start !== prev.end) {
+      errors.push(
+        `Gap/overlap between Row ${prev.idx + 1} (ends at ${prev.end}%) ` +
+        `and Row ${curr.idx + 1} (starts at ${curr.start}%). ` +
+        `Row ${curr.idx + 1} must start at ${prev.end}%.`
+      );
+      brackets[i].row.querySelector(`.${startClass}`)?.classList.add("input-error");
+    }
+  }
+
+  // c) Completeness check — must start at 0 and end at 100
+  if (brackets[0].start !== 0) {
+    errors.push(`First bracket must start at 0% (currently starts at ${brackets[0].start}%).`);
+    brackets[0].row.querySelector(`.${startClass}`)?.classList.add("input-error");
+  }
+  if (brackets[brackets.length - 1].end !== 100) {
+    warnings.push(
+      `Brackets are incomplete — last bracket ends at ${brackets[brackets.length - 1].end}% instead of 100%.`
+    );
+    brackets[brackets.length - 1].row.querySelector(`.${endClass}`)?.classList.add("input-error");
+  }
+
+  // d) Share % sum check (Entry Fee only)
+  if (checkShare) {
+    const rounded = Math.round(shareSum * 100) / 100;
+    if (rounded !== 100) {
+      errors.push(`Share % values must sum to 100. Current sum: ${rounded}%.`);
+      rows.forEach(row => row.querySelector(`.${shareClass}`)?.classList.add("input-error"));
+    }
+  }
+
+  const ok = errors.length === 0;
+  return { ok, errors, warnings };
+}
+
+/** Show validation message in the target div */
+function showRulesMsg(msgDivId, result) {
+  const el = document.getElementById(msgDivId);
+  if (!el) return;
+  el.className = "rules-validation-msg";
+
+  if (result.errors.length > 0) {
+    el.classList.add("has-error");
+    el.innerHTML = result.errors.map(e => `<div>❌ ${e}</div>`).join("") +
+      (result.warnings.length > 0
+        ? result.warnings.map(w => `<div>⚠️ ${w}</div>`).join("")
+        : "");
+  } else if (result.warnings.length > 0) {
+    el.classList.add("has-warn");
+    el.innerHTML = result.warnings.map(w => `<div>⚠️ ${w}</div>`).join("");
+  } else {
+    el.classList.add("has-ok");
+    el.innerHTML = `<div>✓ Rules are valid and complete.</div>`;
+  }
+}
+
+/** Run both validators and return true only if both pass */
+function runAllRuleValidations() {
+  const distRows    = Array.from(document.querySelectorAll("#distributionRules .rule-row"));
+  const trophyRows  = Array.from(document.querySelectorAll("#trophyRules .rule-row"));
+
+  const distResult   = validateBracketRules(distRows,   "dist-start",   "dist-end",   true,  "dist-share");
+  const trophyResult = trophyRows.length > 0
+    ? validateBracketRules(trophyRows, "trophy-start", "trophy-end", false, null)
+    : { ok: true, errors: [], warnings: [] };
+
+  showRulesMsg("distRulesMsg",   distResult);
+  if (trophyRows.length > 0) showRulesMsg("trophyRulesMsg", trophyResult);
+
+  return distResult.ok && trophyResult.ok;
+}
+
+// ============================================================
 //  Compute
 // ============================================================
 function computeResults() {
   const data = getFormData();
+
+  // Validate bracket rules first — block if invalid
+  if (!runAllRuleValidations()) {
+    showToast("Fix the rule validation errors before computing.");
+    return;
+  }
 
   // Validate
   if (data.totalPlayers < 1) {
